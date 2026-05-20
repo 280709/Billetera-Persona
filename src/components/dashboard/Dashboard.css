@@ -1,0 +1,273 @@
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.125rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 0.875rem;
+}
+
+.card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  margin-bottom: 0.875rem;
+}
+
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.875rem;
+}
+
+.card-header-row .card-title {
+  margin-bottom: 0;
+}
+
+.card-link {
+  font-size: 0.8rem;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+/* ── Skeleton ────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--radius);
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Budget summary rows ─────────────────────────────────────── */
+.budget-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.budget-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.budget-row.total {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.budget-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 0.625rem 0;
+}
+
+.amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.amount.positive,
+.stat-value.positive { color: var(--color-success); }
+.amount.negative,
+.stat-value.negative { color: var(--color-danger); }
+
+/* ── Quincena ────────────────────────────────────────────────── */
+.progress-bar-wrap {
+  height: 8px;
+  background: var(--color-border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.progress-bar-success { background: var(--color-success); }
+.progress-bar-warning { background: var(--color-warning); }
+.progress-bar-danger  { background: var(--color-danger); }
+
+.quincena-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.quincena-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+/* ── Badges ──────────────────────────────────────────────────── */
+.badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 99px;
+}
+
+.badge-success { background: #e8f5e9; color: var(--color-success); }
+.badge-warning { background: #fff8e1; color: #c98000; }
+.badge-danger  { background: #fef2f2; color: var(--color-danger); }
+
+/* ── Bills list ──────────────────────────────────────────────── */
+.bill-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.bill-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.bill-dot.urgent { background: var(--color-danger); }
+
+.bill-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.bill-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.bill-days {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.bill-days.urgent { color: var(--color-danger); font-weight: 600; }
+
+.bill-amount {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+/* ── Expenses list ───────────────────────────────────────────── */
+.expense-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.expense-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.expense-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.expense-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.expense-category {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+.expense-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.expense-amount {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-date {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}
+
+/* ── Hints ───────────────────────────────────────────────────── */
+.empty-hint {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  text-align: center;
+  padding: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.empty-hint a {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+/* ── Dashboard greeting ──────────────────────────────────────── */
+.dashboard-greeting {
+  padding: 0.75rem 0 1rem;
+}
+
+.dashboard-greeting h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.dashboard-greeting p {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin-top: 0.15rem;
+  text-transform: capitalize;
+}

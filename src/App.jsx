@@ -9,6 +9,7 @@ import ExpensesPage       from './pages/ExpensesPage'
 import IncomesPage        from './pages/IncomesPage'
 import BillsPage          from './pages/BillsPage'
 import SubscriptionsPage  from './pages/SubscriptionsPage'
+import SettingsPage       from './pages/SettingsPage'
 
 // Placeholders para las rutas pendientes
 import Layout from './components/layout/Layout'
@@ -55,6 +56,9 @@ export default function App() {
           }/>
           <Route path="/suscripciones" element={
             <ProtectedRoute><SubscriptionsPage /></ProtectedRoute>
+          }/>
+          <Route path="/configuracion" element={
+            <ProtectedRoute><SettingsPage /></ProtectedRoute>
           }/>
 
           <Route path="*" element={<Navigate to="/" replace />} />

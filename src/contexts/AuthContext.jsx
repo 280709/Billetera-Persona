@@ -1,38 +1,30 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, getRedirectResult } from 'firebase/auth'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { auth, db } from '../services/firebase'
+import { supabase } from '../services/supabase'
 
 const AuthContext = createContext(null)
+export const useAuth = () => useContext(AuthContext)
+
+function withUid(user) {
+  if (!user) return null
+  return { ...user, uid: user.id }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Procesa el resultado cuando Google redirige de vuelta a la app
-    getRedirectResult(auth).catch(() => {})
-
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        // No-blocking: el perfil se crea en segundo plano, no bloquea la app
-        setDoc(
-          doc(db, 'users', firebaseUser.uid),
-          {
-            displayName: firebaseUser.displayName ?? '',
-            email:       firebaseUser.email,
-            currency:    'COP',
-            createdAt:   serverTimestamp(),
-          },
-          { merge: true }
-        ).catch(e => console.warn('Perfil Firestore:', e.message))
-      }
-      // Siempre actualiza el estado inmediatamente, sin esperar Firestore
-      setUser(firebaseUser)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(withUid(session?.user ?? null))
       setLoading(false)
     })
 
-    return unsubscribe
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(withUid(session?.user ?? null))
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   return (
@@ -41,5 +33,3 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
-
-export const useAuth = () => useContext(AuthContext)

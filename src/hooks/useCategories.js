@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'
-import { db } from '../services/firebase'
+import { supabase } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { EXPENSE_CATEGORIES, BILL_CATEGORIES, SUBSCRIPTION_CATEGORIES } from '../utils/defaultCategories'
 
@@ -10,22 +9,29 @@ export function useCategories(type) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) return
-    const q = query(
-      collection(db, 'users', user.uid, 'categories'),
-      orderBy('createdAt', 'asc')
-    )
-    return onSnapshot(q,
-      snap => {
-        setCustom(snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(c => !type || c.type === type)
-        )
-        setLoading(false)
-      },
-      () => { setCustom([]); setLoading(false) }
-    )
-  }, [user, type])
+    if (!user) { setLoading(false); return }
+
+    let active = true
+
+    async function load() {
+      let q = supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+      if (type) q = q.eq('type', type)
+      const { data } = await q
+      if (active) { setCustom(data ?? []); setLoading(false) }
+    }
+
+    load()
+
+    const ch = supabase.channel(`categories_${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories', filter: `user_id=eq.${user.id}` }, load)
+      .subscribe()
+
+    return () => { active = false; supabase.removeChannel(ch) }
+  }, [user?.id, type])
 
   const defaults = type === 'bill'
     ? BILL_CATEGORIES

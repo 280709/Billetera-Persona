@@ -4,6 +4,7 @@ import { addExpense }         from '../../services/expenseService'
 import { addCreditCardCharge } from '../../services/subscriptionService'
 import { useCategories }      from '../../hooks/useCategories'
 import { addCustomCategory }  from '../../services/categoryService'
+import InvoiceScanner         from './InvoiceScanner'
 import '../expenses/Expenses.css'
 import '../subscriptions/Subscriptions.css'
 import '../bills/Bills.css'
@@ -31,6 +32,16 @@ export default function ExpenseForm({ onClose }) {
   function handle(e) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
+    setError('')
+  }
+
+  function handleScanResult({ description, amount, date } = {}) {
+    setForm(prev => ({
+      ...prev,
+      description: description ?? prev.description,
+      amount:      amount      ?? prev.amount,
+      date:        date        ?? prev.date,
+    }))
     setError('')
   }
 
@@ -84,6 +95,8 @@ export default function ExpenseForm({ onClose }) {
         <h3>Nuevo gasto</h3>
 
         <form onSubmit={handleSubmit} className="sheet-form">
+
+          <InvoiceScanner onResult={handleScanResult} />
 
           <div className="field">
             <label>Descripción</label>

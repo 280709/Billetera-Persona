@@ -1,7 +1,27 @@
 import { useEffect, useState } from 'react'
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore'
-import { db } from '../services/firebase'
+import { supabase } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
+
+function mapSubscription(r) {
+  return {
+    id:                   r.id,
+    name:                 r.name,
+    currency:             r.currency,
+    amount:               r.amount,
+    billingCycle:         r.billing_cycle,
+    nextBillingDate:      r.next_billing_date,
+    reminderDays:         r.reminder_days,
+    isAutoDebit:          r.is_auto_debit,
+    paymentMethod:        r.payment_method,
+    categoryId:           r.category_id,
+    categoryLabel:        r.category_label,
+    categoryIcon:         r.category_icon,
+    isActive:             r.is_active,
+    currentCycleConfirmed: r.current_cycle_confirmed,
+    lastRealAmountCOP:    r.last_real_amount_cop,
+    createdAt:            r.created_at,
+  }
+}
 
 export function useSubscriptions() {
   const { user } = useAuth()
@@ -9,28 +29,35 @@ export function useSubscriptions() {
   const [loading, setLoading]             = useState(true)
 
   useEffect(() => {
-    if (!user) return
-    const q = query(
-      collection(db, 'users', user.uid, 'subscriptions'),
-      where('isActive', '==', true),
-      orderBy('nextBillingDate', 'asc')
-    )
-    return onSnapshot(q,
-      snap => {
-        setSubscriptions(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-        setLoading(false)
-      },
-      err => { console.warn('useSubscriptions:', err.message); setLoading(false) }
-    )
-  }, [user])
+    if (!user) { setLoading(false); return }
+
+    let active = true
+
+    async function load() {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('next_billing_date', { ascending: true })
+      if (active) { setSubscriptions(data?.map(mapSubscription) ?? []); setLoading(false) }
+    }
+
+    load()
+
+    const ch = supabase.channel(`subscriptions_${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${user.id}` }, load)
+      .subscribe()
+
+    return () => { active = false; supabase.removeChannel(ch) }
+  }, [user?.id])
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Suscripciones con alerta activa y sin confirmar
   const pendingConfirmations = subscriptions.filter(s => {
     if (s.currentCycleConfirmed) return false
-    const due = s.nextBillingDate?.toDate?.() ?? new Date(s.nextBillingDate)
+    const due = new Date(s.nextBillingDate)
     const alertDate = new Date(due)
     alertDate.setDate(alertDate.getDate() - (s.reminderDays ?? 3))
     return today >= alertDate

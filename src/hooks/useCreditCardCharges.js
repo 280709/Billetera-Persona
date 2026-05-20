@@ -1,7 +1,21 @@
 import { useEffect, useState } from 'react'
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore'
-import { db } from '../services/firebase'
+import { supabase } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
+
+function mapCharge(r) {
+  return {
+    id:           r.id,
+    sourceType:   r.source_type,
+    sourceId:     r.source_id,
+    sourceName:   r.source_name,
+    categoryIcon: r.category_icon,
+    amount:       r.amount,
+    billingDate:  r.billing_date,
+    isPaid:       r.is_paid,
+    paidAt:       r.paid_at,
+    createdAt:    r.created_at,
+  }
+}
 
 export function useCreditCardCharges() {
   const { user } = useAuth()
@@ -9,17 +23,28 @@ export function useCreditCardCharges() {
   const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
-    if (!user) return
-    const q = query(
-      collection(db, 'users', user.uid, 'creditCardCharges'),
-      where('isPaid', '==', false),
-      orderBy('createdAt', 'desc')
-    )
-    return onSnapshot(q,
-      snap => { setCharges(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false) },
-      err  => { console.warn('useCreditCardCharges:', err.message); setLoading(false) }
-    )
-  }, [user])
+    if (!user) { setLoading(false); return }
+
+    let active = true
+
+    async function load() {
+      const { data } = await supabase
+        .from('credit_card_charges')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_paid', false)
+        .order('created_at', { ascending: false })
+      if (active) { setCharges(data?.map(mapCharge) ?? []); setLoading(false) }
+    }
+
+    load()
+
+    const ch = supabase.channel(`cc_charges_${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'credit_card_charges', filter: `user_id=eq.${user.id}` }, load)
+      .subscribe()
+
+    return () => { active = false; supabase.removeChannel(ch) }
+  }, [user?.id])
 
   const totalPending = charges.reduce((s, c) => s + c.amount, 0)
 

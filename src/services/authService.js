@@ -1,27 +1,28 @@
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithRedirect,
-  signOut,
-  updateProfile,
-} from 'firebase/auth'
-import { auth, googleProvider } from './firebase'
+import { supabase } from './supabase'
+import { getAuthErrorMessage } from '../utils/authErrors'
+
+function check({ error }) {
+  if (error) throw new Error(getAuthErrorMessage(error))
+}
 
 export async function registerWithEmail(email, password, displayName) {
-  const { user } = await createUserWithEmailAndPassword(auth, email, password)
-  await updateProfile(user, { displayName })
-  return user
+  check(await supabase.auth.signUp({
+    email, password,
+    options: { data: { display_name: displayName } },
+  }))
 }
 
 export async function loginWithEmail(email, password) {
-  const { user } = await signInWithEmailAndPassword(auth, email, password)
-  return user
+  check(await supabase.auth.signInWithPassword({ email, password }))
 }
 
-export function loginWithGoogle() {
-  return signInWithRedirect(auth, googleProvider)
+export async function loginWithGoogle() {
+  check(await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options:  { redirectTo: window.location.origin },
+  }))
 }
 
 export async function logout() {
-  await signOut(auth)
+  await supabase.auth.signOut()
 }

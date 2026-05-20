@@ -275,6 +275,33 @@ VITE_FIREBASE_APP_ID=...
 
 ---
 
+## Módulo IA — Lectura de facturas (Gemini)
+
+### Flujo
+1. Usuario va a **Configuración** (⚙ en el header) → ingresa API Key de Gemini → elige modelo → Guardar
+2. Al abrir **Nuevo gasto**, aparece botón "📷 Leer factura con IA"
+3. En móvil abre la cámara trasera directamente; en desktop abre el selector de archivo
+4. La imagen se envía a Gemini API → extrae `description`, `amount`, `date`
+5. Los campos del formulario se auto-rellenan; el usuario puede corregir antes de guardar
+
+### Archivos clave
+- `src/services/geminiService.js` — llamada a la API, conversión a base64, parseo JSON
+- `src/services/settingsService.js` — guarda/elimina key en `users/{uid}/config/ai`
+- `src/hooks/useSettings.js` — reactivo con onSnapshot
+- `src/components/expenses/InvoiceScanner.jsx` — botón cámara + lógica
+- `src/pages/SettingsPage.jsx` — panel de configuración IA
+
+### Datos Firestore
+`users/{uid}/config/ai`:
+```
+aiProvider: 'gemini',
+geminiApiKey: 'AIza...',
+geminiModel: 'gemini-1.5-flash' | 'gemini-1.5-pro'
+```
+
+### Nota de seguridad
+La API key se guarda en Firestore bajo el uid del usuario (no en el código). Solo el usuario autenticado puede leerla (reglas de Firestore). No commitear al git.
+
 ## Trabajo pendiente
 
 1. **historial de facturas**: El hook `useBillHistory` existe en `useBills.js` y consulta `users/{uid}/billHistory`, pero `billService.payBill()` **no escribe** en esa colección todavía. Falta agregar un `addDoc` a `billHistory` dentro de `payBill()`.

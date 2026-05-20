@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { loginWithEmail, loginWithGoogle } from '../../services/authService'
-import { getAuthErrorMessage } from '../../utils/firebaseErrors'
+import { getAuthErrorMessage } from '../../utils/authErrors'
 import { useAuth } from '../../contexts/AuthContext'
 import './Auth.css'
 
@@ -12,7 +12,7 @@ export default function LoginForm() {
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Navega al dashboard en cuanto Firebase confirma la sesión
+  // Navega al dashboard en cuanto Supabase confirma la sesión
   useEffect(() => {
     if (user) navigate('/', { replace: true })
   }, [user, navigate])

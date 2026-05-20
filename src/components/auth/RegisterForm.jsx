@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { registerWithEmail, loginWithGoogle } from '../../services/authService'
-import { getAuthErrorMessage } from '../../utils/firebaseErrors'
+import { getAuthErrorMessage } from '../../utils/authErrors'
 import { useAuth } from '../../contexts/AuthContext'
 import './Auth.css'
 

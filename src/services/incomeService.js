@@ -1,42 +1,38 @@
-import {
-  collection, addDoc, deleteDoc, updateDoc,
-  doc, serverTimestamp, Timestamp,
-} from 'firebase/firestore'
-import { db } from './firebase'
+import { supabase } from './supabase'
 
 export async function addRecurringIncome(uid, { description, amount, timesPerMonth, payDays, startDate }) {
-  return addDoc(collection(db, 'users', uid, 'incomes'), {
+  const { error } = await supabase.from('incomes').insert({
+    user_id:         uid,
     description,
-    amount:        Number(amount),
-    type:          'recurring',
-    timesPerMonth: Number(timesPerMonth),
-    payDays,
-    isActive:      true,
-    startDate:     Timestamp.fromDate(new Date(startDate)),
-    endDate:       null,
-    createdAt:     serverTimestamp(),
+    amount:          Number(amount),
+    type:            'recurring',
+    times_per_month: Number(timesPerMonth),
+    pay_days:        payDays,
+    is_active:       true,
+    start_date:      startDate,
   })
+  if (error) throw new Error(error.message)
 }
 
 export async function addOccasionalIncome(uid, { description, amount, date }) {
-  return addDoc(collection(db, 'users', uid, 'incomes'), {
+  const { error } = await supabase.from('incomes').insert({
+    user_id: uid,
     description,
-    amount:    Number(amount),
-    type:      'occasional',
-    date:      Timestamp.fromDate(new Date(date)),
-    createdAt: serverTimestamp(),
+    amount:  Number(amount),
+    type:    'occasional',
+    date,
   })
+  if (error) throw new Error(error.message)
 }
 
-// Desactiva el ingreso con fecha de fin — no elimina historial
 export async function deactivateIncome(uid, incomeId, endDate) {
-  return updateDoc(doc(db, 'users', uid, 'incomes', incomeId), {
-    isActive: false,
-    endDate:  Timestamp.fromDate(new Date(endDate)),
-  })
+  const { error } = await supabase.from('incomes')
+    .update({ is_active: false, end_date: endDate })
+    .eq('id', incomeId).eq('user_id', uid)
+  if (error) throw new Error(error.message)
 }
 
-// Eliminación permanente (solo para limpiar datos incorrectos)
 export async function deleteIncome(uid, incomeId) {
-  return deleteDoc(doc(db, 'users', uid, 'incomes', incomeId))
+  const { error } = await supabase.from('incomes').delete().eq('id', incomeId).eq('user_id', uid)
+  if (error) throw new Error(error.message)
 }

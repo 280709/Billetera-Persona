@@ -113,25 +113,45 @@ export default function BillForm({ onClose }) {
             </label>
           </div>
 
-          <div className="toggle-row">
-            <label>¿Se repite cada mes?</label>
-            <label className="toggle">
-              <input name="isRecurring" type="checkbox" checked={form.isRecurring} onChange={handle} />
-              <span className="toggle-slider" />
-            </label>
-          </div>
-
-          {form.isRecurring && (
-            <div className="field">
-              <label>Frecuencia</label>
-              <select name="recurrencePeriod" value={form.recurrencePeriod} onChange={handle}>
-                <option value="monthly">Mensual</option>
-                <option value="bimonthly">Bimestral</option>
-                <option value="quarterly">Trimestral</option>
-                <option value="yearly">Anual</option>
-              </select>
+          {/* ── Recurrencia ─────────────────────────────────── */}
+          <div className="recurrence-block">
+            <div className="toggle-row" style={{ marginBottom: form.isRecurring ? '0.75rem' : 0 }}>
+              <div>
+                <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text)' }}>
+                  🔄 Repetir al pagar
+                </span>
+                <p style={{ fontSize: '0.72rem', color: 'var(--color-muted)', marginTop: '0.1rem' }}>
+                  {form.isRecurring
+                    ? 'Se creará la próxima factura automáticamente'
+                    : 'Actívalo para facturas fijas (luz, agua, arriendo…)'}
+                </p>
+              </div>
+              <label className="toggle">
+                <input name="isRecurring" type="checkbox" checked={form.isRecurring} onChange={handle} />
+                <span className="toggle-slider" />
+              </label>
             </div>
-          )}
+
+            {form.isRecurring && (
+              <div className="recurrence-chips">
+                {[
+                  { value: 'monthly',   label: 'Mensual' },
+                  { value: 'bimonthly', label: 'Bimestral' },
+                  { value: 'quarterly', label: 'Trimestral' },
+                  { value: 'yearly',    label: 'Anual' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`recurrence-chip${form.recurrencePeriod === opt.value ? ' selected' : ''}`}
+                    onClick={() => setForm(prev => ({ ...prev, recurrencePeriod: opt.value }))}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {error && <p className="sheet-error">{error}</p>}
 

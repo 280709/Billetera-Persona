@@ -1,7 +1,6 @@
 import { useState }                    from 'react'
 import { useAuth }                     from '../../contexts/AuthContext'
 import { markCreditCardChargePaid, deleteCreditCardCharge } from '../../services/subscriptionService'
-import { useCreditCardCharges }        from '../../hooks/useCreditCardCharges'
 import { formatCurrency, formatDate }  from '../../utils/formatters'
 import '../expenses/Expenses.css'
 import './Subscriptions.css'
@@ -89,9 +88,8 @@ function ChargeRow({ charge }) {
   )
 }
 
-export default function CreditCardChargesSection() {
-  const { charges, totalPending, loading } = useCreditCardCharges()
-
+// Props vienen desde SubscriptionsPage (hook llamado una sola vez arriba)
+export default function CreditCardChargesSection({ charges, totalPending, loading }) {
   if (loading) return null
   if (charges.length === 0) return null
 

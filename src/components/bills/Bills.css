@@ -158,6 +158,41 @@
   font-weight: 500;
 }
 
+/* ── Recurrence block ───────────────────────────────────────── */
+.recurrence-block {
+  background: var(--color-bg);
+  border: 1.5px solid var(--color-border);
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.recurrence-chips {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.recurrence-chip {
+  flex: 1;
+  min-width: 70px;
+  padding: 0.45rem 0.5rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-card);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+  text-align: center;
+}
+
+.recurrence-chip.selected {
+  border-color: var(--color-primary);
+  background: #e8f0fe;
+  color: var(--color-primary);
+}
+
 /* ── Category picker ─────────────────────────────────────────── */
 .category-grid {
   display: grid;

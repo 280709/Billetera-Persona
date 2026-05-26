@@ -61,8 +61,16 @@ export default function ExpenseList({ expenses, loading }) {
             <div className="expense-info">
               <span className="expense-name">
                 {exp.description}
-                {isCredit && (
-                  <span className="pm-expense-badge">TC</span>
+                {isCredit && <span className="pm-expense-badge">TC</span>}
+                {exp.receiptUrl && (
+                  <a
+                    href={exp.receiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="receipt-badge"
+                    title="Ver recibo"
+                    onClick={e => e.stopPropagation()}
+                  >📎</a>
                 )}
               </span>
               <span className="expense-meta">

@@ -27,6 +27,7 @@ export function useSubscriptions() {
   const { user } = useAuth()
   const [subscriptions, setSubscriptions] = useState([])
   const [loading, setLoading]             = useState(true)
+  const [error, setError]                 = useState(null)
 
   useEffect(() => {
     if (!user) { setLoading(false); return }
@@ -34,13 +35,19 @@ export function useSubscriptions() {
     let active = true
 
     async function load() {
-      const { data } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('next_billing_date', { ascending: true })
-      if (active) { setSubscriptions(data?.map(mapSubscription) ?? []); setLoading(false) }
+      try {
+        const { data, error: sbError } = await supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('next_billing_date', { ascending: true })
+        if (sbError) throw sbError
+        if (active) { setSubscriptions(data?.map(mapSubscription) ?? []); setError(null); setLoading(false) }
+      } catch (err) {
+        console.error('[useSubscriptions] Error:', err)
+        if (active) { setError(err.message || 'Error al cargar suscripciones'); setLoading(false) }
+      }
     }
 
     load()
@@ -63,5 +70,5 @@ export function useSubscriptions() {
     return today >= alertDate
   })
 
-  return { subscriptions, pendingConfirmations, loading }
+  return { subscriptions, pendingConfirmations, loading, error }
 }

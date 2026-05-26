@@ -28,13 +28,19 @@ export function useCreditCardCharges() {
     let active = true
 
     async function load() {
-      const { data } = await supabase
-        .from('credit_card_charges')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_paid', false)
-        .order('created_at', { ascending: false })
-      if (active) { setCharges(data?.map(mapCharge) ?? []); setLoading(false) }
+      try {
+        const { data, error: sbError } = await supabase
+          .from('credit_card_charges')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_paid', false)
+          .order('created_at', { ascending: false })
+        if (sbError) throw sbError
+        if (active) { setCharges(data?.map(mapCharge) ?? []); setLoading(false) }
+      } catch (err) {
+        console.error('[useCreditCardCharges] Error:', err)
+        if (active) { setLoading(false) }
+      }
     }
 
     load()

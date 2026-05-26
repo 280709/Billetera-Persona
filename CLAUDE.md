@@ -5,7 +5,8 @@
 PWA de gestión de finanzas personales para usuario colombiano. Maneja ingresos recurrentes por quincena, gastos fijos y variables, facturas con estimados vs. reales, y suscripciones en COP/USD con TRM automática.
 
 **Dev server:** `npm run dev` → http://localhost:5173  
-**Build/deploy:** `npm run build` → Firebase Hosting (`proyecto-2b6d2`)
+**Build/deploy:** `npm run build` → Firebase Hosting (`proyecto-2b6d2`)  
+**Supabase CLI:** `supabase db query --linked "SELECT ..."` (proyecto vinculado: `gtnqcwgdqbfyyeagyxpr`)
 
 ---
 
@@ -15,11 +16,12 @@ PWA de gestión de finanzas personales para usuario colombiano. Maneja ingresos 
 |------|-----------|
 | Frontend | React 18 + Vite 5 (PWA via `vite-plugin-pwa`) |
 | Routing | react-router-dom v6 |
-| Backend | Firebase v10: Auth, Firestore, Storage, Hosting |
-| Auth | Email/password + Google (`signInWithRedirect`, NO popup) |
+| Backend | **Supabase** (Auth, PostgreSQL, Storage, Realtime) |
+| Auth | Email/password + Google OAuth (`signInWithOAuth`, redirect) |
 | CSS | Custom properties, mobile-first, bottom nav |
+| CLI BD | `supabase` CLI v2 — vinculado al proyecto `Billetera` |
 
-**Importante sobre Google Auth:** Se usa `signInWithRedirect` (no popup) porque popup falla en localhost y móvil. El `vite.config.js` tiene header `Cross-Origin-Opener-Policy: same-origin-allow-popups`. `AuthContext` llama `getRedirectResult(auth)` en el mount para capturar el retorno.
+> **Migración completada (mayo 2025):** Firebase → Supabase. No existe `firebase.js`. Cliente en `src/services/supabase.js`.
 
 ---
 
@@ -27,70 +29,79 @@ PWA de gestión de finanzas personales para usuario colombiano. Maneja ingresos 
 
 ```
 src/
-├── App.jsx                          # Rutas + PublicRoute + ProtectedRoute
+├── App.jsx
 ├── main.jsx
 ├── contexts/
-│   └── AuthContext.jsx              # useAuth(), user, loading; escribe doc en users/{uid}
+│   └── AuthContext.jsx              # user.uid = user.id (compat)
 ├── pages/
 │   ├── DashboardPage.jsx
-│   ├── ExpensesPage.jsx             # Navegación mes anterior/siguiente
+│   ├── ExpensesPage.jsx
 │   ├── IncomesPage.jsx
 │   ├── BillsPage.jsx
-│   ├── SubscriptionsPage.jsx
+│   ├── SubscriptionsPage.jsx        # llama useCreditCardCharges UNA sola vez y pasa props
+│   ├── SettingsPage.jsx
 │   ├── LoginPage.jsx
 │   └── RegisterPage.jsx
 ├── components/
+│   ├── expenses/
+│   │   ├── ExpenseForm.jsx          # adjunta recibo siempre (con/sin IA), auto-selecciona cat.
+│   │   ├── ExpenseList.jsx          # ícono 📎 clicable si expense.receiptUrl != null
+│   │   └── InvoiceScanner.jsx       # sin IA: adjunta imagen; con IA: escanea + adjunta
+│   ├── bills/
+│   │   ├── BillForm.jsx             # sección "🔄 Repetir al pagar" con chips de frecuencia
+│   │   ├── BillList.jsx
+│   │   ├── PayBillSheet.jsx
+│   │   └── CategoryPicker.jsx
+│   ├── subscriptions/
+│   │   ├── SubscriptionForm.jsx
+│   │   ├── SubscriptionList.jsx
+│   │   ├── ConfirmDebitSheet.jsx
+│   │   └── CreditCardChargesSection.jsx  # recibe props (charges, totalPending, loading)
+│   ├── dashboard/
+│   │   ├── BudgetSummaryCard.jsx
+│   │   ├── QuincenaCard.jsx
+│   │   ├── RecentExpenses.jsx
+│   │   └── UpcomingBills.jsx
+│   ├── incomes/
+│   │   ├── IncomeForm.jsx
+│   │   ├── IncomeList.jsx
+│   │   └── DeactivateSheet.jsx
 │   ├── auth/
 │   │   ├── LoginForm.jsx
 │   │   ├── RegisterForm.jsx
-│   │   └── ProtectedRoute.jsx       # Spinner "Cargando..." mientras loading
+│   │   └── ProtectedRoute.jsx
 │   ├── layout/
-│   │   ├── Layout.jsx               # Wrapper con header + bottom nav
-│   │   └── BottomNav.jsx            # Íconos: Dashboard, Gastos, Ingresos, Facturas, Suscripciones
-│   ├── dashboard/
-│   │   ├── BudgetSummaryCard.jsx    # Resumen mensual (ingresos - fijos - subs)
-│   │   ├── QuincenaCard.jsx         # Progreso de la quincena actual
-│   │   ├── RecentExpenses.jsx       # Últimos gastos variables
-│   │   └── UpcomingBills.jsx        # Facturas próximas (estimatedDueDate)
-│   ├── expenses/
-│   │   ├── ExpenseForm.jsx          # Bottom sheet: nuevo gasto
-│   │   └── ExpenseList.jsx          # Lista + delete
-│   ├── incomes/
-│   │   ├── IncomeForm.jsx           # Ingreso recurrente u ocasional
-│   │   ├── IncomeList.jsx
-│   │   └── DeactivateSheet.jsx      # Marca endDate para desactivar
-│   ├── bills/
-│   │   ├── BillForm.jsx             # Nueva factura (campos estimados)
-│   │   ├── BillList.jsx             # Lista facturas pendientes
-│   │   ├── PayBillSheet.jsx         # 2 pasos: confirmar débito → monto real + recibo
-│   │   └── CategoryPicker.jsx       # Grid categorías default + custom (Firestore)
-│   └── subscriptions/
-│       ├── SubscriptionForm.jsx     # Nueva suscripción con vista previa TRM
-│       ├── SubscriptionList.jsx     # Lista con badge USD + botón confirmar
-│       └── ConfirmDebitSheet.jsx    # Confirmar cobro + ajustar monto real COP
+│   │   ├── Layout.jsx
+│   │   └── BottomNav.jsx
+│   └── settings/
+│       └── Settings.css
 ├── hooks/
-│   ├── useBudget.js                 # Combina incomes + expenses + subs → calcBudget()
-│   ├── useExpenses.js               # Acepta { year, month } para navegación
-│   ├── useIncomes.js                # onSnapshot incomes activos del mes
-│   ├── useBills.js                  # bills (unpaid) + alertBills + pendingDebits
-│   ├── useSubscriptions.js          # subscriptions activas + pendingConfirmations
-│   ├── useCategories.js             # Default + user-defined categories de Firestore
-│   └── useTRM.js                    # Llama getTRM() al montar
+│   ├── useBudget.js
+│   ├── useExpenses.js               # mapea receipt_url → receiptUrl
+│   ├── useIncomes.js
+│   ├── useBills.js
+│   ├── useSubscriptions.js          # expone { subscriptions, pendingConfirmations, loading, error }
+│   ├── useCreditCardCharges.js      # try/catch en load()
+│   ├── useCategories.js
+│   ├── useSettings.js
+│   └── useTRM.js
 ├── services/
-│   ├── firebase.js                  # auth, db, storage, googleProvider
-│   ├── authService.js               # login/register/logout/loginWithGoogle (redirect)
-│   ├── expenseService.js            # addExpense, deleteExpense
-│   ├── incomeService.js             # addRecurringIncome, addOccasionalIncome, deactivateIncome, deleteIncome
-│   ├── billService.js               # addBill, payBill, confirmDebit, createNextCycle, deleteBill
-│   ├── subscriptionService.js       # addSubscription, confirmSubscriptionDebit, advanceBillingCycle, deactivateSubscription
-│   ├── categoryService.js           # addCustomCategory, deleteCustomCategory
-│   ├── storageService.js            # uploadReceipt → Firebase Storage
-│   └── trmService.js                # getTRM() con cache localStorage + usdToCOP()
+│   ├── supabase.js
+│   ├── authService.js
+│   ├── expenseService.js            # acepta receiptUrl → guarda en receipt_url
+│   ├── incomeService.js
+│   ├── billService.js
+│   ├── subscriptionService.js
+│   ├── categoryService.js
+│   ├── storageService.js            # bucket "receipts" público
+│   ├── geminiService.js             # extrae 5 campos: description, amount, date, categoryId, paymentMethod
+│   ├── settingsService.js
+│   └── trmService.js
 └── utils/
-    ├── budgetCalculator.js          # calcBudget(), progressColor(), receivedPayDays()
-    ├── defaultCategories.js         # BILL_CATEGORIES, SUBSCRIPTION_CATEGORIES, findCategory()
-    ├── formatters.js                # formatCurrency, formatDate, formatMonthYear, daysUntil
-    └── firebaseErrors.js            # Traduce códigos Firebase a español
+    ├── budgetCalculator.js
+    ├── defaultCategories.js
+    ├── formatters.js
+    └── authErrors.js
 ```
 
 ---
@@ -104,218 +115,172 @@ src/
 | `/ingresos` | IncomesPage | Protegida |
 | `/facturas` | BillsPage | Protegida |
 | `/suscripciones` | SubscriptionsPage | Protegida |
-| `/login` | LoginPage | Pública (redirige si ya hay sesión) |
-| `/register` | RegisterPage | Pública (redirige si ya hay sesión) |
+| `/configuracion` | SettingsPage | Protegida |
+| `/login` | LoginPage | Pública |
+| `/register` | RegisterPage | Pública |
 
 ---
 
-## Modelo de datos Firestore
+## Modelo de datos — Supabase PostgreSQL
 
-Todos los datos son sub-colecciones bajo `users/{uid}/...`
+Schema completo en `supabase-schema.sql`. Todas las tablas tienen RLS habilitado.  
+Conectar: `supabase db query --linked "SQL aquí"`
 
-### `users/{uid}` (doc raíz)
-```
-displayName, email, currency: 'COP', createdAt
-```
-
-### `users/{uid}/expenses/{id}`
-```
-description, amount, category, date: Timestamp, isFixed: bool, createdAt
-```
-
-### `users/{uid}/incomes/{id}`
-```
-// Recurrente:
-type: 'recurring', description, amount, timesPerMonth, payDays: [1, 15],
-isActive: bool, startDate: Timestamp, endDate: Timestamp|null, createdAt
-
-// Ocasional:
-type: 'occasional', description, amount, date: Timestamp, createdAt
+### Tabla `expenses`
+```sql
+id, user_id, description, amount,
+category_id, category_label, category_icon,
+payment_method (debit|credit),
+date DATE,
+receipt_url TEXT,          -- ← agregado; imagen del recibo en Storage
+created_at
 ```
 
-### `users/{uid}/bills/{id}`
-```
-name, categoryId, categoryLabel, categoryIcon,
-estimatedAmount, estimatedDueDate: Timestamp,
-realAmount: null|number, realDueDate: null|Timestamp,
-isPaid: bool, paidAt: null|Timestamp, receiptUrl: null|string,
-isAutoDebit: bool, debitConfirmed: null|bool,
-isRecurring: bool, recurrencePeriod: 'monthly'|'bimonthly'|'quarterly'|'yearly'|null,
-reminderDays: number (default 3),
-createdAt, updatedAt
+### Tabla `incomes`
+```sql
+id, user_id, description, amount,
+type (recurring|occasional),
+times_per_month, pay_days INTEGER[],
+is_active, start_date, end_date, date, created_at
 ```
 
-### `users/{uid}/billHistory/{id}` (PENDIENTE — hook existe, service no escribe aquí aún)
-```
-billId, billName, categoryId,
-estimatedAmount, realAmount,
-estimatedDueDate, realDueDate,
-receiptUrl, paidAt
-```
-
-### `users/{uid}/subscriptions/{id}`
-```
-name, currency: 'COP'|'USD', amount,
-billingCycle: 'monthly'|'yearly'|'weekly',
-nextBillingDate: Timestamp,
-reminderDays: number,
-isAutoDebit: bool,
-paymentMethod: 'debit'|'credit',
-isActive: bool,
-categoryId, categoryLabel, categoryIcon,
-currentCycleConfirmed: bool,
-lastRealAmountCOP: null|number,
-createdAt, updatedAt
+### Tabla `bills`
+```sql
+id, user_id, name, category_id, category_label, category_icon,
+estimated_amount, estimated_due_date DATE,
+real_amount, real_due_date DATE,
+is_paid, paid_at, receipt_url,
+is_auto_debit, debit_confirmed,
+is_recurring, recurrence_period (monthly|bimonthly|quarterly|yearly),
+reminder_days INT, created_at, updated_at
 ```
 
-### `users/{uid}/creditCardCharges/{id}`
+### Tabla `subscriptions`
+```sql
+id, user_id, name, currency (COP|USD), amount,
+billing_cycle (monthly|yearly|weekly),
+next_billing_date DATE, reminder_days,
+is_auto_debit, payment_method (debit|credit),
+is_active, category_id, category_label, category_icon,
+current_cycle_confirmed, last_real_amount_cop,
+created_at, updated_at
 ```
-subscriptionId, subscriptionName, categoryIcon,
-amount: number (COP),
-billingDate: Timestamp,
-isPaid: bool,
-paidAt: null|Timestamp,
-createdAt
-```
-Se crea automáticamente en `ConfirmDebitSheet` cuando `paymentMethod === 'credit'`.
 
-### `users/{uid}/categories/{id}`
+### Tabla `credit_card_charges`
+```sql
+id, user_id,
+source_type (subscription|bill|expense),
+source_id UUID, source_name,
+category_icon, amount, billing_date DATE,
+is_paid, paid_at, created_at
 ```
-type: 'bill'|'subscription', label, icon (emoji), createdAt
+
+### Tabla `categories`
+```sql
+id, user_id, type (bill|subscription|expense), name, icon, created_at
 ```
+
+### Tabla `user_config`
+```sql
+user_id (PK), ai_provider, gemini_api_key, gemini_model, updated_at
+```
+
+---
+
+## Storage Supabase
+
+- **Bucket:** `receipts` (público)
+- **Ruta:** `{uid}/{timestamp}.{ext}`
+- **Acceso:** URLs públicas vía `getPublicUrl`
+- **Uso actual:** recibos de facturas (`bills`) y recibos de gastos (`expenses`)
+
+---
+
+## Convención de datos
+
+BD usa `snake_case`; JS/React usa `camelCase`.  
+Cada hook tiene función `mapXxx(row)` que traduce. **Siempre usar camelCase en componentes y servicios.**
 
 ---
 
 ## Lógica de negocio clave
 
+### Módulo de Gastos — Scanner IA + adjuntar imagen
+
+`InvoiceScanner` tiene dos modos según `settings.geminiApiKey`:
+
+| Sin API key Gemini | Con API key Gemini |
+|--------------------|--------------------|
+| Botón `📎 Adjuntar imagen del recibo` | Botón `📷 Leer factura con IA` |
+| Solo adjunta la foto | Analiza imagen + rellena campos + adjunta |
+
+Al guardar el gasto:
+1. Si hay imagen capturada → se sube a Supabase Storage → se guarda `receipt_url` con el gasto
+2. En la lista de gastos, aparece `📎` clicable junto a gastos con recibo
+
+Gemini extrae **5 campos**: `description`, `amount`, `date`, `categoryId`, `paymentMethod`.
+
+### Módulo de Facturas — Recurrencia
+
+El toggle "🔄 Repetir al pagar" tiene chips visuales: **Mensual / Bimestral / Trimestral / Anual**.  
+Al pagar una factura recurrente, `createNextCycle()` crea el siguiente ciclo automáticamente.
+
+### Suscripciones — Canal Realtime único
+
+**IMPORTANTE:** `useCreditCardCharges()` se llama **una sola vez** en `SubscriptionsPage` y los datos se pasan como props a `CreditCardChargesSection`. Nunca llamar el hook dos veces en el mismo árbol de componentes (crearía canales Supabase duplicados).
+
 ### Cálculo de presupuesto (`budgetCalculator.js`)
 
-- **`summaryCutoff = lastDay`**: El resumen mensual siempre proyecta el mes completo (NO solo hasta hoy). Así el usuario ve lo que recibirá todo el mes.
-- **`quincenaCutoff = currentDay`** (solo para mes actual): La quincena solo cuenta lo ya recibido hasta hoy.
-- **`receivedPayDays(inc, year, month, cutoffDay)`**: Filtra los `payDays` del ingreso que caen dentro del mes respetando `startDate`, `endDate` y el `cutoffDay`.
-- Quincenas: Q1 = días 1–15, Q2 = días 16–31.
-- Disponible = `totalIncome - totalFixed - totalSubs`. `monthRemaining = disponible - totalVariable`.
+- `summaryCutoff = lastDay` → proyección del mes completo
+- `quincenaCutoff = currentDay` → solo lo recibido hasta hoy
+- Disponible = `totalIncome - totalFixed - totalSubs`
 
-### Facturas (`billService.js`)
+### TRM (`trmService.js`)
 
-- Al crear: solo montos y fechas **estimados**.
-- Al pagar (`payBill`): **obligatorio** ingresar `realAmount` y `realDueDate`. Opcionalmente sube recibo a Firebase Storage.
-- Débito automático: flujo de 2 pasos en `PayBillSheet` — primero confirmar que el banco debitó (`confirmDebit`), luego registrar real.
-- Recurrentes: al pagar se llama `createNextCycle()` que crea nuevo doc con `estimatedAmount = realAmount` anterior y fecha avanzada según `recurrencePeriod`.
-
-### Suscripciones y TRM (`trmService.js`)
-
-- TRM desde API oficial Colombia: `datos.gov.co/resource/32sa-8pi3.json`
-- Cache en `localStorage` con key `billetera_trm`, renovado diariamente.
-- Fórmula: `Math.ceil(amountUSD * trm) + 200` (200 COP de margen bancario).
-- Fallback si la API falla: último valor cacheado o 4200.
-- `SubscriptionForm` muestra vista previa del costo en COP en tiempo real.
-- `ConfirmDebitSheet` permite ajustar el `lastRealAmountCOP` al confirmar.
-
-### Recordatorios
-
-- **Facturas**: `alertDate = estimatedDueDate - reminderDays`. Si `today >= alertDate` → factura aparece en `alertBills`.
-- **Suscripciones**: misma lógica con `nextBillingDate - reminderDays`.
-- `pendingDebits` = facturas en alerta con `isAutoDebit && !debitConfirmed`.
-- `pendingConfirmations` = suscripciones en alerta con `!currentCycleConfirmed`.
-
-### Categorías personalizadas (`categoryService.js` + `CategoryPicker.jsx`)
-
-- Las categorías default están hardcodeadas en `defaultCategories.js` (8 para bills, 7 para subs).
-- El usuario puede crear categorías custom guardadas en `users/{uid}/categories/{id}`.
-- `CategoryPicker` muestra grid de defaults + custom, con botón "+ Nueva" para crear inline.
-
-### Receipt upload (`storageService.js`)
-
-- Ruta en Storage: `users/{uid}/receipts/{timestamp}.{ext}`
-- Tipos permitidos: jpg, jpeg, png, pdf, webp. Máx 5MB.
-- Si falla el upload, `PayBillSheet` muestra error pero permite continuar sin recibo.
+- API: `datos.gov.co/resource/32sa-8pi3.json`
+- Cache `localStorage` key `billetera_trm`, renovado diariamente
+- Fallback: 4200 COP
+- Fórmula USD→COP: `Math.ceil(USD × trm) + 200`
 
 ---
 
-## Índices Firestore requeridos
+## Módulo IA — Gemini
 
-Crear en Firebase Console → Firestore → Indexes → Composite:
+Configuración en `/configuracion`. Tabla `user_config` en Supabase.
 
-| Colección | Campo 1 | Campo 2 |
-|-----------|---------|---------|
-| `users/{uid}/bills` | `isPaid` (Asc) | `estimatedDueDate` (Asc) |
-| `users/{uid}/subscriptions` | `isActive` (Asc) | `nextBillingDate` (Asc) |
-| `users/{uid}/creditCardCharges` | `isPaid` (Asc) | `createdAt` (Desc) |
+Modelos soportados: `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-2.0-flash`, `gemini-2.0-flash-lite`
 
----
-
-## Firebase Storage rules
-
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /users/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
+Campos extraídos del recibo:
+- `description` — nombre del comercio
+- `amount` — total en COP
+- `date` — fecha del documento (YYYY-MM-DD)
+- `categoryId` — categoría sugerida (food/transport/health/leisure/shopping/education/home/beauty/other)
+- `paymentMethod` — `credit` si detecta VISA/Mastercard/TC, sino `debit`
 
 ---
 
-## Variables de entorno
-
-Archivo `.env.local` en la raíz (NO commitear, ya en `.gitignore`):
+## Variables de entorno (`.env.local`)
 
 ```
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=proyecto-2b6d2
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
+VITE_SUPABASE_URL=https://gtnqcwgdqbfyyeagyxpr.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJ...
 ```
 
 ---
-
-## Módulo IA — Lectura de facturas (Gemini)
-
-### Flujo
-1. Usuario va a **Configuración** (⚙ en el header) → ingresa API Key de Gemini → elige modelo → Guardar
-2. Al abrir **Nuevo gasto**, aparece botón "📷 Leer factura con IA"
-3. En móvil abre la cámara trasera directamente; en desktop abre el selector de archivo
-4. La imagen se envía a Gemini API → extrae `description`, `amount`, `date`
-5. Los campos del formulario se auto-rellenan; el usuario puede corregir antes de guardar
-
-### Archivos clave
-- `src/services/geminiService.js` — llamada a la API, conversión a base64, parseo JSON
-- `src/services/settingsService.js` — guarda/elimina key en `users/{uid}/config/ai`
-- `src/hooks/useSettings.js` — reactivo con onSnapshot
-- `src/components/expenses/InvoiceScanner.jsx` — botón cámara + lógica
-- `src/pages/SettingsPage.jsx` — panel de configuración IA
-
-### Datos Firestore
-`users/{uid}/config/ai`:
-```
-aiProvider: 'gemini',
-geminiApiKey: 'AIza...',
-geminiModel: 'gemini-1.5-flash' | 'gemini-1.5-pro'
-```
-
-### Nota de seguridad
-La API key se guarda en Firestore bajo el uid del usuario (no en el código). Solo el usuario autenticado puede leerla (reglas de Firestore). No commitear al git.
 
 ## Trabajo pendiente
 
-1. **historial de facturas**: El hook `useBillHistory` existe en `useBills.js` y consulta `users/{uid}/billHistory`, pero `billService.payBill()` **no escribe** en esa colección todavía. Falta agregar un `addDoc` a `billHistory` dentro de `payBill()`.
-
-2. **Vista de historial**: No hay UI para mostrar el historial de pagos de una factura.
-
-3. **Firebase Storage**: Debe estar habilitado manualmente en Firebase Console con las reglas de arriba antes de que funcione el upload de recibos.
+1. **Historial de facturas**: No hay tabla `bill_history` en Supabase ni UI de historial.
+2. **Convertir a app nativa**: Ver opciones en sección siguiente (Capacitor recomendado).
+3. **Notificaciones push**: Para recordatorios de facturas/suscripciones próximas.
 
 ---
 
 ## Decisiones de diseño importantes
 
-- **`signInWithRedirect` no popup**: popup bloqueado en localhost y móviles; el redirect captura bien con `getRedirectResult` en el mount de `AuthContext`.
-- **`summaryCutoff = lastDay`**: corrección aplicada porque el dashboard mostraba $0 cuando los `payDays` caían después del día actual del mes.
-- **Estimados obligatorios en facturas**: el sistema siempre tiene un monto/fecha estimados; los reales solo se ingresan al pagar.
-- **Ciclo siguiente automático**: `createNextCycle` usa `realAmount` como nuevo `estimatedAmount`, aprendiendo del pago anterior.
-- **Sin mock en tests**: los tests deben usar Firestore real (si aplica en el futuro).
+- **Migración Firebase → Supabase (mayo 2025)**: Modelo relacional más limpio, RLS nativo, storage incluido.
+- **`user.uid = user.id`**: `AuthContext` agrega `.uid` al objeto user para compatibilidad.
+- **Canal Realtime único**: No llamar `useCreditCardCharges` en más de un componente del mismo árbol.
+- **`summaryCutoff = lastDay`**: Dashboard muestra proyección del mes completo.
+- **Receipt upload no bloquea**: Si falla el upload de imagen, el gasto se guarda igual sin foto.
+- **`InvoiceScanner` siempre visible**: Aunque no haya API key, permite adjuntar imagen manualmente.

@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-export async function addExpense(uid, { description, amount, date, categoryId, categoryLabel, categoryIcon, paymentMethod }) {
+export async function addExpense(uid, { description, amount, date, categoryId, categoryLabel, categoryIcon, paymentMethod, receiptUrl }) {
   const { error } = await supabase.from('expenses').insert({
     user_id:        uid,
     description,
@@ -10,6 +10,7 @@ export async function addExpense(uid, { description, amount, date, categoryId, c
     category_icon:  categoryIcon  ?? '📦',
     payment_method: paymentMethod ?? 'debit',
     date,
+    receipt_url:    receiptUrl    ?? null,
   })
   if (error) throw new Error(error.message)
 }

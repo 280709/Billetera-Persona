@@ -12,6 +12,7 @@ function mapExpense(r) {
     categoryIcon:  r.category_icon,
     paymentMethod: r.payment_method,
     date:          r.date,
+    receiptUrl:    r.receipt_url ?? null,
     // legacy compat
     category:      r.category_id,
     createdAt:     r.created_at,

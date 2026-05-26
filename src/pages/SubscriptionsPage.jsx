@@ -13,9 +13,10 @@ import '../components/expenses/Expenses.css'
 import '../components/subscriptions/Subscriptions.css'
 
 export default function SubscriptionsPage() {
-  const { subscriptions, pendingConfirmations, loading } = useSubscriptions()
-  const { trm, loading: trmLoading }                    = useTRM()
-  const { totalPending: ccPending }                     = useCreditCardCharges()
+  const { subscriptions, pendingConfirmations, loading, error } = useSubscriptions()
+  const { trm, loading: trmLoading }                            = useTRM()
+  const { charges: ccCharges, totalPending: ccPending,
+          loading: ccLoading }                                  = useCreditCardCharges()
   const [showForm, setShowForm] = useState(false)
 
   // Total mensual estimado en COP (normalizado a mensual)
@@ -70,9 +71,28 @@ export default function SubscriptionsPage() {
         )}
       </div>
 
+      {error && (
+        <div style={{
+          background: '#fef2f2',
+          border: '1.5px solid #ea4335',
+          borderRadius: '0.75rem',
+          padding: '0.75rem 1rem',
+          marginBottom: '0.875rem',
+          fontSize: '0.85rem',
+          color: '#c62828',
+          fontWeight: 500,
+        }}>
+          ⚠ Error al cargar: {error}
+        </div>
+      )}
+
       <SubscriptionList subscriptions={subscriptions} loading={loading} />
 
-      <CreditCardChargesSection />
+      <CreditCardChargesSection
+        charges={ccCharges}
+        totalPending={ccPending}
+        loading={ccLoading}
+      />
 
       <button className="fab" onClick={() => setShowForm(true)} aria-label="Agregar suscripción">+</button>
 

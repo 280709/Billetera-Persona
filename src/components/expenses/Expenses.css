@@ -134,6 +134,16 @@
   margin-left: 0.35rem;
 }
 
+.receipt-badge {
+  font-size: 0.8rem;
+  margin-left: 0.35rem;
+  text-decoration: none;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+
+.receipt-badge:hover { opacity: 1; }
+
 .expense-row .expense-amount {
   font-size: 0.9rem;
   font-weight: 700;

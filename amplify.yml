@@ -1,0 +1,44 @@
+version: 1
+
+#
+# Billetera Personal — AWS Amplify Hosting
+# Stack: React 18 + Vite 5 + PWA (vite-plugin-pwa)
+#
+# Variables de entorno — configurar en Amplify Console:
+#   App settings > Environment variables
+#   VITE_SUPABASE_URL  = https://gtnqcwgdqbfyyeagyxpr.supabase.co
+#   VITE_SUPABASE_ANON_KEY = eyJ...
+#
+# Redirect SPA — configurar en Amplify Console:
+#   Hosting > Rewrites and redirects > Add rule:
+#     Source:  /<*>
+#     Target:  /index.html
+#     Type:    200 (Rewrite)
+#
+
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # Usar Node 20 LTS (Vite 5 requiere Node >= 18)
+        - nvm install 20
+        - nvm use 20
+        - node --version
+        - npm --version
+        # npm ci es más limpio y reproducible que npm install
+        - npm ci
+
+    build:
+      commands:
+        - npm run build
+
+  artifacts:
+    # Vite genera la build en /dist por defecto
+    baseDirectory: dist
+    files:
+      - '**/*'
+
+  cache:
+    paths:
+      # Cachear node_modules entre builds para mayor velocidad
+      - node_modules/**/*

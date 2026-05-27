@@ -1,0 +1,42 @@
+# customHeaders.yml — AWS Amplify Hosting
+# Controla el caching HTTP para la PWA (Billetera Personal)
+#
+# Amplify detecta este archivo automáticamente si está en la raíz del repo.
+
+customHeaders:
+  # El HTML principal NO debe cachearse: garantiza que el usuario
+  # siempre descargue la versión más reciente al navegar a la app.
+  - pattern: 'index.html'
+    headers:
+      - key: 'Cache-Control'
+        value: 'no-cache, no-store, must-revalidate'
+
+  # El service worker tampoco debe cachearse: si queda cacheado,
+  # el navegador no detecta actualizaciones de la PWA.
+  - pattern: 'sw.js'
+    headers:
+      - key: 'Cache-Control'
+        value: 'no-cache, no-store, must-revalidate'
+  - pattern: 'workbox-*.js'
+    headers:
+      - key: 'Cache-Control'
+        value: 'no-cache, no-store, must-revalidate'
+
+  # Manifiesto PWA: sin cache para que los cambios de ícono/nombre se apliquen.
+  - pattern: 'manifest.webmanifest'
+    headers:
+      - key: 'Cache-Control'
+        value: 'no-cache'
+
+  # Assets de Vite: llevan hash en el nombre → cache agresivo (1 año).
+  # Cuando cambia el código, Vite genera un nuevo hash, invalidando el cache.
+  - pattern: 'assets/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=31536000, immutable'
+
+  # Imágenes estáticas: cache de 7 días
+  - pattern: '**/*.{png,jpg,jpeg,gif,svg,ico,webp}'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=604800'

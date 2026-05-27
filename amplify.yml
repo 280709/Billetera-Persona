@@ -30,6 +30,9 @@ frontend:
 
     build:
       commands:
+        # Inyectar variables de entorno para Vite (SSM no disponible en este entorno)
+        - export VITE_SUPABASE_URL=https://gtnqcwgdqbfyyeagyxpr.supabase.co
+        - export VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bnFjd2dkcWJmeXllYWd5eHByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDc1ODUsImV4cCI6MjA5NDg4MzU4NX0.X9BQCb35ZDpCqzgxh7kQjyE4ozpvMZ3eLcnGy0mrbAU
         - npm run build
 
   artifacts:

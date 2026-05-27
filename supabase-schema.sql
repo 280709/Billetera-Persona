@@ -149,3 +149,4 @@ CREATE POLICY "view_own_receipts" ON storage.objects FOR SELECT
 ALTER PUBLICATION supabase_realtime ADD TABLE
   expenses, incomes, bills, subscriptions,
   credit_card_charges, categories, user_config;
+ 

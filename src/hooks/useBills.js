@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -10,25 +10,22 @@ function mapBill(r) {
     categoryLabel:    r.category_label,
     categoryIcon:     r.category_icon,
     estimatedAmount:  r.estimated_amount,
-    estimatedDueDate: r.estimated_due_date,
-    realAmount:       r.real_amount,
-    realDueDate:      r.real_due_date,
+    dueDate:          r.due_date,
+    paymentMethod:    r.payment_method,
+    currency:         r.currency ?? 'COP',
     isPaid:           r.is_paid,
-    isAutoDebit:      r.is_auto_debit,
-    debitConfirmed:   r.debit_confirmed,
-    reminderDays:     r.reminder_days,
-    receiptUrl:       r.receipt_url,
     isRecurring:      r.is_recurring,
     recurrencePeriod: r.recurrence_period,
-    paidAt:           r.paid_at,
+    reminderDays:     r.reminder_days,
     createdAt:        r.created_at,
   }
 }
 
 export function useBills() {
   const { user } = useAuth()
-  const [bills, setBills]     = useState([])
+  const [bills, setBills]   = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError]   = useState(null)
 
   useEffect(() => {
     if (!user) { setLoading(false); return }
@@ -36,13 +33,18 @@ export function useBills() {
     let active = true
 
     async function load() {
-      const { data } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_paid', false)
-        .order('estimated_due_date', { ascending: true })
-      if (active) { setBills(data?.map(mapBill) ?? []); setLoading(false) }
+      try {
+        const { data, error: sbError } = await supabase
+          .from('bills')
+          .select('id, name, category_id, category_label, category_icon, estimated_amount, due_date, payment_method, currency, is_paid, is_recurring, recurrence_period, reminder_days, created_at')
+          .eq('user_id', user.id)
+          .eq('is_paid', false)
+          .order('due_date', { ascending: true })
+        if (sbError) throw sbError
+        if (active) { setBills(data?.map(mapBill) ?? []); setError(null); setLoading(false) }
+      } catch (err) {
+        if (active) { setError(err.message || 'Error al cargar facturas'); setLoading(false) }
+      }
     }
 
     load()
@@ -54,45 +56,21 @@ export function useBills() {
     return () => { active = false; supabase.removeChannel(ch) }
   }, [user?.id])
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const { alertBills, overdueBills } = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
-  const alertBills = bills.filter(b => {
-    const due = new Date(b.estimatedDueDate)
-    const alertDate = new Date(due)
-    alertDate.setDate(alertDate.getDate() - (b.reminderDays ?? 3))
-    return today >= alertDate
-  })
+    const alertBills = bills.filter(b => {
+      const due = new Date(b.dueDate)
+      const alertDate = new Date(due)
+      alertDate.setDate(alertDate.getDate() - (b.reminderDays ?? 3))
+      return today >= alertDate
+    })
 
-  const pendingDebits = alertBills.filter(b => b.isAutoDebit && !b.debitConfirmed)
+    const overdueBills = bills.filter(b => new Date(b.dueDate) < today)
 
-  return { bills, alertBills, pendingDebits, loading }
-}
+    return { alertBills, overdueBills }
+  }, [bills])
 
-export function useBillHistory() {
-  const { user } = useAuth()
-  const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user) { setLoading(false); return }
-
-    let active = true
-
-    async function load() {
-      const { data } = await supabase
-        .from('bills')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_paid', true)
-        .order('paid_at', { ascending: false })
-      if (active) { setHistory(data?.map(mapBill) ?? []); setLoading(false) }
-    }
-
-    load()
-
-    return () => { active = false }
-  }, [user?.id])
-
-  return { history, loading }
+  return { bills, alertBills, overdueBills, loading, error }
 }

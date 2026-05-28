@@ -4,7 +4,7 @@ import './Dashboard.css'
 export default function BudgetSummaryCard({ budget }) {
   if (!budget) return <div className="card skeleton" style={{ height: 180 }} />
 
-  const { totalIncome, totalSubs, availableToSpend, monthRemaining } = budget
+  const { totalIncome, totalFixed, availableToSpend, monthRemaining } = budget
   const isNegative = monthRemaining < 0
 
   return (
@@ -17,8 +17,8 @@ export default function BudgetSummaryCard({ budget }) {
           <span className="amount positive">{formatCurrency(totalIncome)}</span>
         </div>
         <div className="budget-row">
-          <span>Suscripciones</span>
-          <span className="amount negative">− {formatCurrency(totalSubs)}</span>
+          <span>Facturas fijas</span>
+          <span className="amount negative">− {formatCurrency(totalFixed ?? 0)}</span>
         </div>
       </div>
 

@@ -1,6 +1,9 @@
 -- ================================================================
 -- BILLETERA PERSONAL — Schema Supabase
--- Pega todo esto en: Supabase → SQL Editor → Run
+-- Última actualización: Mayo 2026
+-- Migración: Unificación Facturas + Suscripciones
+-- Pega todo esto en: Supabase → SQL Editor → Run (solo para DB nueva)
+-- Para DB existente: usar migration-2026-05.sql
 -- ================================================================
 
 -- Gastos
@@ -14,11 +17,16 @@ CREATE TABLE IF NOT EXISTS expenses (
   category_icon   TEXT NOT NULL DEFAULT '📦',
   payment_method  TEXT NOT NULL DEFAULT 'debit',
   date            DATE NOT NULL,
+  receipt_url     TEXT,
+  bill_id         UUID REFERENCES bills(id) ON DELETE SET NULL,  -- trazabilidad pago de facturas
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own_expenses" ON expenses FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_user_date  ON expenses(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_bill_id    ON expenses(bill_id);
 
 -- Ingresos
 CREATE TABLE IF NOT EXISTS incomes (
@@ -39,75 +47,36 @@ ALTER TABLE incomes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own_incomes" ON incomes FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Facturas
+-- Facturas (unificadas: facturas únicas + suscripciones recurrentes)
+--
+-- Flujo de pago:
+--   Al pagar → se crea un registro en `expenses` con bill_id apuntando a esta factura.
+--   Si is_recurring=true → se avanza due_date al próximo ciclo.
+--   Si is_recurring=false → se marca is_paid=true.
+--   Para deshacer un pago → eliminar el expense desde el módulo de Gastos.
 CREATE TABLE IF NOT EXISTS bills (
-  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id             UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  name                TEXT NOT NULL,
-  category_id         TEXT NOT NULL,
-  category_label      TEXT NOT NULL,
-  category_icon       TEXT NOT NULL,
-  estimated_amount    NUMERIC NOT NULL,
-  estimated_due_date  DATE NOT NULL,
-  real_amount         NUMERIC,
-  real_due_date       DATE,
-  is_paid             BOOLEAN DEFAULT false,
-  paid_at             TIMESTAMPTZ,
-  receipt_url         TEXT,
-  is_auto_debit       BOOLEAN DEFAULT false,
-  debit_confirmed     BOOLEAN,
-  is_recurring        BOOLEAN DEFAULT false,
-  recurrence_period   TEXT,
-  reminder_days       INTEGER DEFAULT 3,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW()
+  id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id           UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name              TEXT NOT NULL,
+  category_id       TEXT NOT NULL,
+  category_label    TEXT NOT NULL,
+  category_icon     TEXT NOT NULL,
+  estimated_amount  NUMERIC NOT NULL,
+  due_date          DATE NOT NULL,           -- fecha única: vencimiento/cobro
+  payment_method    TEXT NOT NULL DEFAULT 'debit',
+  currency          TEXT NOT NULL DEFAULT 'COP',   -- COP o USD
+  is_paid           BOOLEAN DEFAULT false,   -- solo usado por facturas no recurrentes
+  is_recurring      BOOLEAN DEFAULT false,
+  recurrence_period TEXT,                    -- monthly|bimonthly|quarterly|yearly|weekly
+  reminder_days     INTEGER DEFAULT 3,
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE bills ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own_bills" ON bills FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Suscripciones
-CREATE TABLE IF NOT EXISTS subscriptions (
-  id                      UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id                 UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  name                    TEXT NOT NULL,
-  currency                TEXT NOT NULL DEFAULT 'COP',
-  amount                  NUMERIC NOT NULL,
-  billing_cycle           TEXT NOT NULL DEFAULT 'monthly',
-  next_billing_date       DATE NOT NULL,
-  reminder_days           INTEGER DEFAULT 3,
-  is_auto_debit           BOOLEAN DEFAULT false,
-  payment_method          TEXT NOT NULL DEFAULT 'debit',
-  is_active               BOOLEAN DEFAULT true,
-  category_id             TEXT NOT NULL,
-  category_label          TEXT NOT NULL,
-  category_icon           TEXT NOT NULL,
-  current_cycle_confirmed BOOLEAN DEFAULT false,
-  last_real_amount_cop    NUMERIC,
-  created_at              TIMESTAMPTZ DEFAULT NOW(),
-  updated_at              TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "own_subscriptions" ON subscriptions FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-
--- Cargos tarjeta de crédito
-CREATE TABLE IF NOT EXISTS credit_card_charges (
-  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id       UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  source_type   TEXT NOT NULL DEFAULT 'subscription',
-  source_id     UUID,
-  source_name   TEXT NOT NULL,
-  category_icon TEXT NOT NULL DEFAULT '📋',
-  amount        NUMERIC NOT NULL,
-  billing_date  DATE,
-  is_paid       BOOLEAN DEFAULT false,
-  paid_at       TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
-);
-ALTER TABLE credit_card_charges ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "own_cc_charges" ON credit_card_charges FOR ALL
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_bills_user_due ON bills(user_id, due_date ASC);
 
 -- Categorías personalizadas
 CREATE TABLE IF NOT EXISTS categories (
@@ -145,8 +114,6 @@ CREATE POLICY "upload_own_receipts" ON storage.objects FOR INSERT
 CREATE POLICY "view_own_receipts" ON storage.objects FOR SELECT
   USING (bucket_id = 'receipts' AND auth.uid()::text = (storage.foldername(name))[1]);
 
--- Habilitar Realtime para todas las tablas
+-- Habilitar Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE
-  expenses, incomes, bills, subscriptions,
-  credit_card_charges, categories, user_config;
- 
+  expenses, incomes, bills, categories, user_config;

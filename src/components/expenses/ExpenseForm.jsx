@@ -1,36 +1,44 @@
-import { useState }           from 'react'
-import { useAuth }            from '../../contexts/AuthContext'
-import { addExpense }         from '../../services/expenseService'
-import { uploadReceipt }      from '../../services/storageService'
-import { addCreditCardCharge } from '../../services/subscriptionService'
-import { useCategories }      from '../../hooks/useCategories'
-import { addCustomCategory }  from '../../services/categoryService'
-import InvoiceScanner         from './InvoiceScanner'
+import { useState }          from 'react'
+import { useAuth }           from '../../contexts/AuthContext'
+import { addExpense, updateExpense } from '../../services/expenseService'
+import { uploadReceipt }     from '../../services/storageService'
+import { useCategories }     from '../../hooks/useCategories'
+import { addCustomCategory } from '../../services/categoryService'
+import InvoiceScanner        from './InvoiceScanner'
 import '../expenses/Expenses.css'
 import '../subscriptions/Subscriptions.css'
 import '../bills/Bills.css'
 
 const TODAY = new Date().toISOString().split('T')[0]
 
-const INITIAL = {
-  description:   '',
-  amount:        '',
-  date:          TODAY,
-  paymentMethod: 'debit',
+function buildInitial(expense) {
+  if (expense) {
+    return {
+      description:   expense.description,
+      amount:        String(expense.amount),
+      date:          expense.date,
+      paymentMethod: expense.paymentMethod ?? 'debit',
+    }
+  }
+  return { description: '', amount: '', date: TODAY, paymentMethod: 'debit' }
 }
 
-export default function ExpenseForm({ onClose }) {
+// expense prop: si se pasa, opera en modo edición
+export default function ExpenseForm({ onClose, expense = null }) {
   const { user }       = useAuth()
   const { categories } = useCategories('expense')
+  const isEditing      = expense !== null
 
-  const [form, setForm]             = useState(INITIAL)
-  const [category, setCategory]     = useState(null)
-  const [capturedFile, setCapturedFile] = useState(null)  // archivo imagen del scanner
-  const [saving, setSaving]         = useState(false)
+  const [form, setForm]         = useState(() => buildInitial(expense))
+  const [category, setCategory] = useState(
+    expense ? { id: expense.categoryId, label: expense.categoryLabel, icon: expense.categoryIcon } : null
+  )
+  const [capturedFile, setCapturedFile]     = useState(null)
+  const [saving, setSaving]                 = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
-  const [error, setError]           = useState('')
-  const [addingCat, setAddingCat]   = useState(false)
-  const [newCatName, setNewCatName] = useState('')
+  const [error, setError]                   = useState('')
+  const [addingCat, setAddingCat]           = useState(false)
+  const [newCatName, setNewCatName]         = useState('')
 
   function handle(e) {
     const { name, value } = e.target
@@ -38,7 +46,6 @@ export default function ExpenseForm({ onClose }) {
     setError('')
   }
 
-  // Recibe resultado de la IA + archivo de imagen
   function handleScanResult({ description, amount, date, categoryId, paymentMethod, imageFile } = {}) {
     setForm(prev => ({
       ...prev,
@@ -47,22 +54,17 @@ export default function ExpenseForm({ onClose }) {
       date:          date          ?? prev.date,
       paymentMethod: paymentMethod ?? prev.paymentMethod,
     }))
-
-    // Auto-seleccionar categoría si la IA la detectó
     if (categoryId) {
       const match = categories.find(c => c.id === categoryId)
       if (match) setCategory(match)
     }
-
-    // Guardar archivo para subirlo al guardar
     if (imageFile) setCapturedFile(imageFile)
-
     setError('')
   }
 
   async function handleAddCat() {
     if (!newCatName.trim()) return
-    const ref = await addCustomCategory(user.uid, { name: newCatName, icon: '🏷️', type: 'expense' })
+    const ref = await addCustomCategory(user.id, { name: newCatName, icon: '🏷️', type: 'expense' })
     setCategory({ id: ref.id, label: newCatName, icon: '🏷️' })
     setAddingCat(false)
     setNewCatName('')
@@ -70,46 +72,38 @@ export default function ExpenseForm({ onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.description.trim())                   { setError('Ingresa una descripción.'); return }
-    if (!category)                                  { setError('Selecciona una categoría.'); return }
-    if (!form.amount || Number(form.amount) <= 0)   { setError('El monto debe ser mayor a 0.'); return }
+    if (!form.description.trim())                 { setError('Ingresa una descripción.'); return }
+    if (!category)                                { setError('Selecciona una categoría.'); return }
+    if (!form.amount || Number(form.amount) <= 0) { setError('El monto debe ser mayor a 0.'); return }
 
     setSaving(true)
     setError('')
 
     try {
-      // 1. Subir imagen del recibo si hay una capturada
-      let receiptUrl = null
+      let receiptUrl = expense?.receiptUrl ?? null
+
       if (capturedFile) {
         setUploadProgress('Subiendo recibo...')
         try {
-          receiptUrl = await uploadReceipt(user.uid, capturedFile)
+          receiptUrl = await uploadReceipt(user.id, capturedFile)
         } catch (uploadErr) {
           console.warn('No se pudo subir el recibo:', uploadErr.message)
-          // No bloquear el guardado si falla el upload
         }
         setUploadProgress('')
       }
 
-      // 2. Guardar el gasto con la URL del recibo
-      await addExpense(user.uid, {
+      const payload = {
         ...form,
         categoryId:    category.id,
         categoryLabel: category.label,
         categoryIcon:  category.icon,
         receiptUrl,
-      })
+      }
 
-      // 3. Si pagó con TC, crear cargo pendiente
-      if (form.paymentMethod === 'credit') {
-        await addCreditCardCharge(user.uid, {
-          sourceType:  'expense',
-          sourceId:    null,
-          sourceName:  form.description,
-          categoryIcon: category.icon,
-          amount:      form.amount,
-          billingDate: form.date,
-        })
+      if (isEditing) {
+        await updateExpense(user.id, expense.id, payload)
+      } else {
+        await addExpense(user.id, payload)
       }
 
       onClose()
@@ -125,12 +119,22 @@ export default function ExpenseForm({ onClose }) {
       <div className="sheet-backdrop" onClick={onClose} />
       <div className="sheet" style={{ maxHeight: '92dvh', overflowY: 'auto' }}>
         <div className="sheet-handle" />
-        <h3>Nuevo gasto</h3>
+        <h3>{isEditing ? 'Editar gasto' : 'Nuevo gasto'}</h3>
+
+        {isEditing && expense.billId && (
+          <div style={{
+            background: '#e8f0fe', borderRadius: '0.6rem',
+            padding: '0.5rem 0.75rem', fontSize: '0.82rem',
+            color: '#1a73e8', marginBottom: '0.5rem',
+          }}>
+            📋 Pago de factura — edita el monto o fecha si hubo un error
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="sheet-form">
 
-          {/* Scanner IA — aparece solo si el usuario configuró Gemini */}
-          <InvoiceScanner onResult={handleScanResult} />
+          {/* Scanner IA — solo para gastos nuevos */}
+          {!isEditing && <InvoiceScanner onResult={handleScanResult} />}
 
           <div className="field">
             <label>Descripción</label>
@@ -153,11 +157,14 @@ export default function ExpenseForm({ onClose }) {
             </div>
           </div>
 
-          {/* Categoría — puede venir pre-seleccionada por la IA */}
           <div className="field">
             <label>
               Categoría
-              {category && <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: 'var(--color-success)', fontWeight: 600 }}>✓ detectada por IA</span>}
+              {!isEditing && category && (
+                <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: 'var(--color-success)', fontWeight: 600 }}>
+                  ✓ detectada por IA
+                </span>
+              )}
             </label>
             <div className="category-grid">
               {categories.map(cat => (
@@ -191,11 +198,10 @@ export default function ExpenseForm({ onClose }) {
             <label>Fecha</label>
             <input
               name="date" type="date"
-              value={form.date} onChange={handle} max={TODAY}
+              value={form.date} onChange={handle}
             />
           </div>
 
-          {/* Método de pago — puede venir pre-seleccionado por la IA */}
           <div className="field">
             <label>Pagado con</label>
             <div className="currency-toggle">
@@ -212,14 +218,22 @@ export default function ExpenseForm({ onClose }) {
                 </button>
               ))}
             </div>
-            {form.paymentMethod === 'credit' && (
-              <p style={{ fontSize: '0.72rem', color: 'var(--color-muted)', marginTop: '0.35rem' }}>
-                Se creará un cargo pendiente en "Tarjeta de crédito".
-              </p>
-            )}
           </div>
 
-          {/* Indicador de recibo adjunto */}
+          {/* Recibo adjunto */}
+          {expense?.receiptUrl && !capturedFile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              background: '#e8f5e9', borderRadius: '0.6rem',
+              padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: '#2e7d32',
+            }}>
+              <span>📎</span>
+              <a href={expense.receiptUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+                Ver recibo adjunto
+              </a>
+            </div>
+          )}
+
           {capturedFile && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -236,13 +250,13 @@ export default function ExpenseForm({ onClose }) {
             </div>
           )}
 
-          {error && <p className="sheet-error">{error}</p>}
+          {error          && <p className="sheet-error">{error}</p>}
           {uploadProgress && <p className="scan-hint">{uploadProgress}</p>}
 
           <div className="sheet-actions">
             <button type="button" className="btn-cancel" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn-save" disabled={saving}>
-              {saving ? (uploadProgress || 'Guardando...') : 'Guardar gasto'}
+              {saving ? (uploadProgress || 'Guardando...') : isEditing ? 'Guardar cambios' : 'Guardar gasto'}
             </button>
           </div>
         </form>

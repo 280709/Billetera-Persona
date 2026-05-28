@@ -1,35 +1,21 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider }  from './contexts/AuthContext'
-import { useAuth }       from './contexts/AuthContext'
-import ProtectedRoute    from './components/auth/ProtectedRoute'
-import LoginPage         from './pages/LoginPage'
-import RegisterPage      from './pages/RegisterPage'
-import DashboardPage     from './pages/DashboardPage'
-import ExpensesPage       from './pages/ExpensesPage'
-import IncomesPage        from './pages/IncomesPage'
-import BillsPage          from './pages/BillsPage'
-import SubscriptionsPage  from './pages/SubscriptionsPage'
-import SettingsPage       from './pages/SettingsPage'
-
-// Placeholders para las rutas pendientes
-import Layout from './components/layout/Layout'
+import { AuthProvider } from './contexts/AuthContext'
+import { useAuth }      from './contexts/AuthContext'
+import ProtectedRoute   from './components/auth/ProtectedRoute'
+import LoginPage        from './pages/LoginPage'
+import RegisterPage     from './pages/RegisterPage'
+import DashboardPage    from './pages/DashboardPage'
+import ExpensesPage     from './pages/ExpensesPage'
+import IncomesPage      from './pages/IncomesPage'
+import BillsPage        from './pages/BillsPage'
+import SettingsPage     from './pages/SettingsPage'
+import Layout           from './components/layout/Layout'
 import './components/layout/Layout.css'
 
-// Redirige al dashboard si ya hay sesión activa
 function PublicRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) return null
   return user ? <Navigate to="/" replace /> : children
-}
-
-function ComingSoon({ title }) {
-  return (
-    <Layout title={title}>
-      <p style={{ color: 'var(--color-muted)', textAlign: 'center', marginTop: '2rem' }}>
-        Sección en construcción...
-      </p>
-    </Layout>
-  )
 }
 
 export default function App() {
@@ -37,11 +23,9 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
-          {/* Rutas públicas — redirigen al dashboard si ya hay sesión */}
           <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
-          {/* Rutas protegidas */}
           <Route path="/" element={
             <ProtectedRoute><DashboardPage /></ProtectedRoute>
           }/>
@@ -54,12 +38,12 @@ export default function App() {
           <Route path="/facturas" element={
             <ProtectedRoute><BillsPage /></ProtectedRoute>
           }/>
-          <Route path="/suscripciones" element={
-            <ProtectedRoute><SubscriptionsPage /></ProtectedRoute>
-          }/>
           <Route path="/configuracion" element={
             <ProtectedRoute><SettingsPage /></ProtectedRoute>
           }/>
+
+          {/* Redirigir URLs antiguas de suscripciones */}
+          <Route path="/suscripciones" element={<Navigate to="/facturas" replace />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

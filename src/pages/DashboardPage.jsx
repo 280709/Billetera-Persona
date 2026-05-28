@@ -1,19 +1,17 @@
-import { useAuth }           from '../contexts/AuthContext'
-import { useBudget }         from '../hooks/useBudget'
-import { useBills }          from '../hooks/useBills'
-import Layout                from '../components/layout/Layout'
-import BudgetSummaryCard     from '../components/dashboard/BudgetSummaryCard'
-import QuincenaCard          from '../components/dashboard/QuincenaCard'
-import UpcomingBills         from '../components/dashboard/UpcomingBills'
-import RecentExpenses        from '../components/dashboard/RecentExpenses'
-import { formatMonthYear }   from '../utils/formatters'
+import { useAuth }         from '../contexts/AuthContext'
+import { useBudget }       from '../hooks/useBudget'
+import Layout              from '../components/layout/Layout'
+import BudgetSummaryCard   from '../components/dashboard/BudgetSummaryCard'
+import QuincenaCard        from '../components/dashboard/QuincenaCard'
+import UpcomingBills       from '../components/dashboard/UpcomingBills'
+import RecentExpenses      from '../components/dashboard/RecentExpenses'
+import { formatMonthYear } from '../utils/formatters'
 import '../components/layout/Layout.css'
 import '../components/dashboard/Dashboard.css'
 
 export default function DashboardPage() {
-  const { user }                    = useAuth()
-  const { budget, loading, expenses } = useBudget()
-  const { bills, loading: lBills }  = useBills()
+  const { user }                           = useAuth()
+  const { budget, loading, expenses, bills } = useBudget()
 
   const firstName = user?.displayName?.split(' ')[0] ?? 'Usuario'
 
@@ -26,7 +24,7 @@ export default function DashboardPage() {
 
       <BudgetSummaryCard budget={budget} />
       <QuincenaCard      budget={budget} />
-      <UpcomingBills     bills={bills}    loading={lBills} />
+      <UpcomingBills     bills={bills ?? []}    loading={loading} />
       <RecentExpenses    expenses={expenses ?? []} loading={loading} />
     </Layout>
   )

@@ -13,7 +13,7 @@ export default function CategoryPicker({ type, value, onChange }) {
 
   async function handleAddCategory() {
     if (!newName.trim()) return
-    const doc = await addCustomCategory(user.uid, { name: newName.trim(), icon: newIcon, type })
+    const doc = await addCustomCategory(user.id, { name: newName.trim(), icon: newIcon, type })
     onChange({ id: doc.id, label: newName.trim(), icon: newIcon })
     setAdding(false)
     setNewName('')

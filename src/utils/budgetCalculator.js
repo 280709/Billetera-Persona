@@ -1,46 +1,31 @@
+import { usdToCOP } from '../services/trmService'
+
 function toDate(val) {
-  if (!val) return null
-  if (val?.toDate) return val.toDate()
-  return new Date(val)
+  return val ? new Date(val) : null
 }
 
-/**
- * Devuelve los payDays del ingreso que realmente se recibieron en el mes dado.
- * Reglas:
- *  - Solo días ≤ cutoffDay (hoy para el mes actual, fin del mes para meses pasados)
- *  - Si startDate cae en este mes, solo días ≥ día de startDate
- *  - Si endDate cae en este mes, solo días ≤ día de endDate
- *  - Si endDate está antes de este mes, 0 pagos
- *  - Si startDate está después de este mes, 0 pagos
- */
 function receivedPayDays(inc, year, month, cutoffDay) {
   const monthStart = new Date(year, month, 1)
-  const monthEnd   = new Date(year, month + 1, 0) // último día del mes
+  const monthEnd   = new Date(year, month + 1, 0)
 
   const start = toDate(inc.startDate)
   const end   = toDate(inc.endDate)
 
-  // El ingreso no aplica en este mes
   if (start && start > monthEnd)   return []
   if (end   && end   < monthStart) return []
 
-  // Límite inferior: si startDate cae en este mes, desde ese día; si no, desde el día 1
-  const fromDay = (start && start >= monthStart)
-    ? start.getDate()
-    : 1
-
-  // Límite superior: si endDate cae en este mes, hasta ese día;
-  // si no, hasta cutoffDay (hoy o fin del mes)
-  const toDay = (end && end <= monthEnd)
+  const fromDay = (start && start >= monthStart) ? start.getDate() : 1
+  const toDay   = (end && end <= monthEnd)
     ? Math.min(end.getDate(), cutoffDay)
     : cutoffDay
 
-  if (!inc.payDays?.length) return []   // sin payDays no podemos saber los días exactos
-
+  if (!inc.payDays?.length) return []
   return inc.payDays.filter(d => d >= fromDay && d <= toDay)
 }
 
-export function calcBudget(incomes = [], expenses = [], subscriptions = [], refDate = new Date()) {
+// bills: array de facturas activas (is_paid = false) del hook useBills
+// trm: tasa de cambio COP/USD (para facturas en USD)
+export function calcBudget(incomes = [], expenses = [], bills = [], trm = 4200, refDate = new Date()) {
   const now        = refDate
   const year       = now.getFullYear()
   const month      = now.getMonth()
@@ -48,90 +33,83 @@ export function calcBudget(incomes = [], expenses = [], subscriptions = [], refD
   const lastDay    = new Date(year, month + 1, 0).getDate()
   const isQ1       = currentDay <= 15
 
-  // Para quincena usamos hoy como tope; para el resumen mensual mostramos
-  // la proyección completa del mes (lastDay) — así el usuario ve lo que recibirá,
-  // no solo lo que ya cobró.
   const now0 = new Date()
-  const isCurrentMonth = year === now0.getFullYear() && month === now0.getMonth()
-  const quincenaCutoff = isCurrentMonth ? currentDay : lastDay
-  const summaryCutoff  = lastDay   // siempre proyección completa del mes
+  const isCurrentMonth  = year === now0.getFullYear() && month === now0.getMonth()
+  const quincenaCutoff  = isCurrentMonth ? currentDay : lastDay
+  const summaryCutoff   = lastDay
 
-  // ── Ingresos fijos ─────────────────────────────────────────────
-  const recurring = incomes.filter(i => !i.type || i.type === 'recurring')
-
-  const recurringTotal = recurring.reduce((sum, inc) => {
-    const days = receivedPayDays(inc, year, month, summaryCutoff)
-
-    // Fallback para docs sin payDays (ingresados manualmente o con formato viejo)
-    if (!inc.payDays?.length) {
-      const timesPerMonth = inc.timesPerMonth ?? (inc.frequency === 'biweekly' ? 2 : 1)
-      const start = toDate(inc.startDate)
-      const end   = toDate(inc.endDate)
-      const monthStart = new Date(year, month, 1)
-      const monthEnd   = new Date(year, month + 1, 0)
-      if (start && start > monthEnd)   return sum
-      if (end   && end   < monthStart) return sum
-      return sum + inc.amount * timesPerMonth
-    }
-
-    return sum + inc.amount * days.length
-  }, 0)
-
-  // Para quincena usamos quincenaCutoff (hasta hoy)
-  const recurringQ1 = recurring.reduce((sum, inc) => {
-    const days = receivedPayDays(inc, year, month, quincenaCutoff)
-    return sum + inc.amount * days.filter(d => d <= 15).length
-  }, 0)
-
-  const recurringQ2 = recurring.reduce((sum, inc) => {
-    const days = receivedPayDays(inc, year, month, quincenaCutoff)
-    return sum + inc.amount * days.filter(d => d > 15).length
-  }, 0)
-
-  // ── Ingresos adicionales ───────────────────────────────────────
+  // ── Ingresos ────────────────────────────────────────────────────
+  const recurring  = incomes.filter(i => !i.type || i.type === 'recurring')
   const occasional = incomes.filter(i => i.type === 'occasional')
-  const occasionalTotal = occasional.reduce((sum, inc) => sum + inc.amount, 0)
 
-  // Separar adicionales por quincena según su fecha
-  const occasionalQ1 = occasional.reduce((sum, inc) => {
-    const d = inc.date?.toDate ? inc.date.toDate() : new Date(inc.date)
-    return d.getDate() <= 15 ? sum + inc.amount : sum
+  const { recurringTotal, recurringQ1, recurringQ2 } = recurring.reduce(
+    (acc, inc) => {
+      if (!inc.payDays?.length) {
+        const timesPerMonth = inc.timesPerMonth ?? 1
+        const start = toDate(inc.startDate)
+        const end   = toDate(inc.endDate)
+        const monthStart = new Date(year, month, 1)
+        const monthEnd   = new Date(year, month + 1, 0)
+        if (start && start > monthEnd)   return acc
+        if (end   && end   < monthStart) return acc
+        acc.recurringTotal += inc.amount * timesPerMonth
+        return acc
+      }
+      const daysTotal = receivedPayDays(inc, year, month, summaryCutoff)
+      const daysQ     = receivedPayDays(inc, year, month, quincenaCutoff)
+      acc.recurringTotal += inc.amount * daysTotal.length
+      acc.recurringQ1    += inc.amount * daysQ.filter(d => d <= 15).length
+      acc.recurringQ2    += inc.amount * daysQ.filter(d => d > 15).length
+      return acc
+    },
+    { recurringTotal: 0, recurringQ1: 0, recurringQ2: 0 }
+  )
+
+  const occasionalTotal = occasional.reduce((s, i) => s + i.amount, 0)
+
+  const occasionalQ1 = occasional.reduce((s, i) => {
+    const d = new Date(i.date)
+    return d.getDate() <= 15 ? s + i.amount : s
   }, 0)
-  const occasionalQ2 = occasional.reduce((sum, inc) => {
-    const d = inc.date?.toDate ? inc.date.toDate() : new Date(inc.date)
-    return d.getDate() > 15 ? sum + inc.amount : sum
+  const occasionalQ2 = occasional.reduce((s, i) => {
+    const d = new Date(i.date)
+    return d.getDate() > 15 ? s + i.amount : s
   }, 0)
 
   const totalIncome = recurringTotal + occasionalTotal
 
-  // ── Gastos ────────────────────────────────────────────────────
+  // ── Gastos variables ─────────────────────────────────────────────
   const totalVariable = expenses.reduce((s, e) => s + e.amount, 0)
 
-  // ── Suscripciones ─────────────────────────────────────────────
-  const totalSubs = subscriptions
-    .filter(s => s.isActive)
-    .reduce((sum, s) => {
-      if (s.billingCycle === 'yearly') return sum + s.amount / 12
-      if (s.billingCycle === 'weekly') return sum + s.amount * 4
-      return sum + s.amount
+  // ── Facturas recurrentes (equivalente mensual) ───────────────────
+  // Solo las recurrentes se consideran costo fijo mensual del presupuesto.
+  // Las facturas únicas pendientes no se incluyen aquí (son gastos eventuales).
+  const totalFixed = bills
+    .filter(b => b.isRecurring)
+    .reduce((sum, b) => {
+      const amount = b.currency === 'USD' ? usdToCOP(b.estimatedAmount, trm) : b.estimatedAmount
+      if (b.recurrencePeriod === 'yearly')    return sum + amount / 12
+      if (b.recurrencePeriod === 'weekly')    return sum + amount * 4
+      if (b.recurrencePeriod === 'bimonthly') return sum + amount / 2
+      if (b.recurrencePeriod === 'quarterly') return sum + amount / 3
+      return sum + amount // monthly
     }, 0)
 
-  // ── Disponible total ─────────────────────────────────────────
-  const availableToSpend = Math.max(totalIncome - totalSubs, 0)
+  // ── Disponible ───────────────────────────────────────────────────
+  const availableToSpend = Math.max(totalIncome - totalFixed, 0)
   const monthRemaining   = availableToSpend - totalVariable
 
-  // ── Quincena actual ───────────────────────────────────────────
+  // ── Quincena ─────────────────────────────────────────────────────
   const quincenaIncome    = isQ1
     ? recurringQ1 + occasionalQ1
     : recurringQ2 + occasionalQ2
-  const quincenaAvailable = Math.max(quincenaIncome - totalSubs / 2, 0)
+  const quincenaAvailable = Math.max(quincenaIncome - totalFixed / 2, 0)
 
   const quincenaExpenses = expenses.filter(e => {
-    const d   = e.date?.toDate ? e.date.toDate() : new Date(e.date)
-    const day = d.getDate()
+    const day = new Date(e.date).getDate()
     return isQ1 ? day <= 15 : day > 15
   })
-  const quincenaSpent = quincenaExpenses.reduce((s, e) => s + e.amount, 0)
+  const quincenaSpent     = quincenaExpenses.reduce((s, e) => s + e.amount, 0)
   const quincenaRemaining = quincenaAvailable - quincenaSpent
   const quincenaProgress  = quincenaAvailable > 0
     ? Math.min((quincenaSpent / quincenaAvailable) * 100, 100)
@@ -141,7 +119,7 @@ export function calcBudget(incomes = [], expenses = [], subscriptions = [], refD
     totalIncome,
     recurringTotal,
     occasionalTotal,
-    totalSubs,
+    totalFixed,
     availableToSpend,
     totalVariable,
     monthRemaining,

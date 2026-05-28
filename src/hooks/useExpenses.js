@@ -13,8 +13,7 @@ function mapExpense(r) {
     paymentMethod: r.payment_method,
     date:          r.date,
     receiptUrl:    r.receipt_url ?? null,
-    // legacy compat
-    category:      r.category_id,
+    billId:        r.bill_id ?? null,
     createdAt:     r.created_at,
   }
 }

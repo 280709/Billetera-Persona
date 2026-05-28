@@ -13,7 +13,7 @@ export default function UpcomingBills({ bills, loading }) {
       ) : (
         <ul className="bill-list">
           {bills.map(bill => {
-            const days   = daysUntil(bill.estimatedDueDate ?? bill.dueDate)
+            const days   = daysUntil(bill.dueDate)
             const urgent = days <= 3
 
             return (
@@ -22,17 +22,14 @@ export default function UpcomingBills({ bills, loading }) {
                 <div className="bill-info">
                   <span className="bill-name">
                     {bill.categoryIcon && `${bill.categoryIcon} `}{bill.name}
-                    {bill.isAutoDebit && !bill.debitConfirmed && (
-                      <span style={{ fontSize: '0.65rem', marginLeft: 4, color: '#c98000' }}>⚠</span>
-                    )}
                   </span>
                   <span className={`bill-days ${urgent ? 'urgent' : ''}`}>
                     {days < 0 ? 'Vencida' : days === 0 ? 'Vence hoy' : `${days} días`}
-                    {' · '}estimado
+                    {bill.isRecurring ? ' · recurrente' : ''}
                   </span>
                 </div>
                 <span className="bill-amount">
-                  {formatCurrency(bill.estimatedAmount ?? bill.amount)}
+                  {formatCurrency(bill.estimatedAmount)}
                 </span>
               </li>
             )
